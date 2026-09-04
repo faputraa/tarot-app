@@ -224,8 +224,115 @@ button:focus-visible{outline:2px solid var(--purple);outline-offset:3px}
 .tabs{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;margin-bottom:0}
 .tab{flex:1;padding:10px;background:transparent;border:0;color:var(--text);cursor:pointer;font-size:12px;transition:.2s}
 .tab.active{background:var(--purple);color:white}
-.detail{font-size:12px;line-height:1.7;color:var(--muted)}
+.detail{font-size:12px;line-height:1.7;color:var(--muted);display:flex;flex-direction:column;gap:12px}
 .detail strong{color:var(--text)}
+
+/* Category Filter Bar */
+.category-filter-bar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.cat-filter-label{
+  font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+}
+.category-pills{
+  display:flex;gap:6px;flex-wrap:wrap;
+}
+.cat-pill{
+  border:1px solid var(--line);background:var(--surface2);border-radius:20px;padding:5px 12px;
+  font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:5px;
+}
+.cat-pill:hover{border-color:var(--purple);color:var(--text)}
+.cat-pill.active{background:var(--purple);border-color:var(--purple);color:#fff;box-shadow:0 3px 10px rgba(111,74,160,.25)}
+
+/* Card Meaning Section in Detail */
+.card-meaning-box{
+  background:rgba(111,74,160,.06);border:1px solid rgba(111,74,160,.2);border-radius:14px;padding:14px 16px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.card-meaning-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+}
+.meaning-badge{
+  font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);
+}
+.meaning-orient-tag{
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(111,74,160,.12);color:var(--purple);
+}
+.card-meaning-box h4{
+  margin:0;font:600 14px Georgia,serif;color:var(--text);
+}
+.card-meaning-text{
+  font-size:12.5px;line-height:1.65;color:var(--text);margin:0;
+}
+
+/* Deeper Meaning Box & Categories */
+.deeper-box{
+  display:flex;flex-direction:column;gap:12px;
+}
+.deeper-box-header{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px dashed var(--line);padding-bottom:8px;
+}
+.deeper-title-group h4{
+  margin:0;font:500 16px Georgia,serif;color:var(--text);
+}
+.deeper-title-group p{
+  margin:2px 0 0;font-size:11px;color:var(--muted);
+}
+.orientation-switch-btn{
+  border:1px solid var(--gold);background:rgba(182,139,60,.08);color:var(--gold);padding:5px 12px;
+  border-radius:99px;font-size:11px;font-weight:700;cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:4px;
+}
+.orientation-switch-btn:hover{
+  background:var(--gold);color:#fff;box-shadow:0 3px 10px rgba(182,139,60,.3);
+}
+.deeper-categories-grid{
+  display:flex;flex-direction:column;gap:10px;
+}
+.cat-card{
+  border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface2);
+  transition:all .2s ease;display:flex;flex-direction:column;gap:6px;
+}
+.cat-card:hover{
+  border-color:var(--purple);box-shadow:0 4px 16px rgba(0,0,0,.05);
+}
+.cat-card-top{
+  display:flex;align-items:center;gap:8px;
+}
+.cat-card-icon{font-size:14px}
+.cat-card-name{
+  font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--text);flex:1;
+}
+.cat-card-pill{
+  font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:99px;background:rgba(80,59,93,.08);color:var(--muted);
+}
+body.dark .cat-card-pill{background:rgba(240,226,255,.1)}
+.cat-card-body{
+  font-size:12px;line-height:1.65;color:var(--text);margin:0;
+}
+
+/* Category Accent Borders */
+.cat-card.cat-general{border-left:3px solid var(--gold)}
+.cat-card.cat-love{border-left:3px solid #e05275}
+.cat-card.cat-career{border-left:3px solid var(--purple)}
+.cat-card.cat-finances{border-left:3px solid #2f9e68}
+.cat-card.cat-advice{border-left:3px solid #2a82c9}
+
+/* All View Deeper Breakdown */
+.all-card-categories{
+  display:flex;flex-direction:column;gap:8px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
+}
+.all-cat-item{
+  font-size:11.5px;line-height:1.55;color:var(--text);background:var(--surface);border-radius:8px;padding:8px 10px;border-left:3px solid var(--purple);
+}
+.all-cat-item strong{
+  color:var(--purple);display:inline-block;margin-right:4px;
+}
+.all-cat-item.cat-general{border-left-color:var(--gold)}
+.all-cat-item.cat-love{border-left-color:#e05275}
+.all-cat-item.cat-career{border-left-color:var(--purple)}
+.all-cat-item.cat-finances{border-left-color:#2f9e68}
+.all-cat-item.cat-advice{border-left-color:#2a82c9}
+
 
 .all-view{
   display:flex;flex-direction:column;gap:16px;

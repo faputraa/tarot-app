@@ -46,7 +46,7 @@
     <div class="panel-header">
       <div class="panel-title-wrap">
         <h3 class="panel-title">Spread Reading & Interpretations</h3>
-        <p class="panel-subtitle">Explore card meanings, position reflections, and insights</p>
+        <p class="panel-subtitle">Explore card meanings, deep archetypes, and category insights</p>
       </div>
       <div class="mode-toggle" id="modeToggle">
         <button class="mode-btn active" id="modeSingleBtn" data-mode="single">🔍 One by One</button>
@@ -70,10 +70,16 @@
             <span class="context-label">Position Focus</span>
             <div class="context-text" id="positionText">Select a card or position to read its meaning.</div>
           </div>
-          <div class="tabs">
-            <button class="tab active" data-tab="meaning">Card Meaning</button>
-            <button class="tab" data-tab="reflect">Reflect on This</button>
-            <button class="tab" data-tab="journal">Journal</button>
+          <div class="category-filter-bar">
+            <span class="cat-filter-label">Categories:</span>
+            <div class="category-pills" id="categoryPills">
+              <button class="cat-pill active" data-cat="all">✦ All in One</button>
+              <button class="cat-pill" data-cat="general">🌟 General</button>
+              <button class="cat-pill" data-cat="love">💖 Love</button>
+              <button class="cat-pill" data-cat="career">💼 Career</button>
+              <button class="cat-pill" data-cat="finances">🪙 Finances</button>
+              <button class="cat-pill" data-cat="advice">🧭 Advice</button>
+            </div>
           </div>
           <div class="detail" id="detail">This card reveals the energy surrounding its position in your spread.</div>
           <div class="card-nav" id="cardNav">
@@ -87,10 +93,14 @@
       <!-- All Cards View Container -->
       <div class="all-view" id="allView" style="display:none">
         <div class="all-view-toolbar">
-          <div class="all-tabs">
-            <button class="all-tab active" data-alltab="meaning">All Meanings</button>
-            <button class="all-tab" data-alltab="reflect">All Reflections</button>
-            <button class="all-tab" data-alltab="journal">All Journal Prompts</button>
+          <div class="all-tabs" id="allTabs">
+            <button class="all-tab active" data-alltab="all">✦ Full Reading</button>
+            <button class="all-tab" data-alltab="meaning">Position Meaning</button>
+            <button class="all-tab" data-alltab="general">🌟 General</button>
+            <button class="all-tab" data-alltab="love">💖 Love</button>
+            <button class="all-tab" data-alltab="career">💼 Career</button>
+            <button class="all-tab" data-alltab="finances">🪙 Finances</button>
+            <button class="all-tab" data-alltab="advice">🧭 Advice</button>
           </div>
           <button class="ghost-sm" id="revealAllInAllBtn">✦ Reveal All Cards</button>
         </div>
@@ -104,6 +114,7 @@
 </section>
 </div>
 
+<script src="tarotData.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

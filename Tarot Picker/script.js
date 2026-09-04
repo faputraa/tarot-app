@@ -174,9 +174,10 @@ let state = {
   cards: [],
   revealed: 0,
   selected: 0,
-  tab: "meaning",
+  category: "all",
+  previewOrientation: null,
   viewMode: "single",
-  allTab: "meaning"
+  allTab: "all"
 };
 
 const $ = id => document.getElementById(id);
@@ -216,9 +217,10 @@ function start(key) {
     cards: pickCards(spreads[key].positions.length),
     revealed: 0,
     selected: 0,
-    tab: "meaning",
+    category: "all",
+    previewOrientation: null,
     viewMode: "single",
-    allTab: "meaning"
+    allTab: "all"
   };
   $("selection").classList.remove("active");
   $("reading").classList.add("active");
@@ -332,6 +334,7 @@ function reveal(i) {
   if (state.cards[i].revealed) return;
   state.cards[i].revealed = true;
   state.selected = i;
+  state.previewOrientation = null;
   state.revealed = state.cards.filter(c => c.revealed).length;
   const cardEl = document.querySelector(`.spread-stage .card[data-i="${i}"]`);
   if (cardEl) {
@@ -351,6 +354,7 @@ function revealAll() {
       setTimeout(() => {
         c.revealed = true;
         state.selected = i;
+        state.previewOrientation = null;
         state.revealed = state.cards.filter(card => card.revealed).length;
         const cardEl = document.querySelector(`.spread-stage .card[data-i="${i}"]`);
         if (cardEl) {
@@ -369,6 +373,7 @@ function revealAll() {
 
 function selectPosition(i) {
   state.selected = i;
+  state.previewOrientation = null;
   updateStageSelection();
   if (state.viewMode === "all") {
     const targetEl = document.getElementById(`allCard-${i}`);
@@ -386,6 +391,7 @@ function selectPosition(i) {
 
 function inspectSingleCard(i) {
   state.selected = i;
+  state.previewOrientation = null;
   setViewMode("single");
   renderStage();
   renderInterpretation();
@@ -474,12 +480,107 @@ function renderSingleInterpretation() {
     </div>
   `;
 
-  const tab = state.tab;
-  $("detail").innerHTML = tab === "meaning"
-    ? `This card reveals the energy surrounding <strong>${posName}</strong> in your spread.<br><br><strong>${c.orientation} Reading:</strong> ${meaning}`
-    : tab === "reflect"
-    ? `Reflect on how <strong>${c.name}</strong> (${c.orientation}) shows up in your life through the lens of <strong>${posName}</strong>.<br><br>What feels immediately true? What feels uncomfortable or unexpectedly useful?`
-    : `Journal prompt: <strong>What does ${c.name} ask me to notice about ${posName}?</strong><br><br>Write freely about the current influences without trying to predict the future.`;
+  // Deeper Details
+  const details = (typeof tarotCardDetails !== "undefined" && (tarotCardDetails[c.file] || tarotCardDetails[c.name])) || null;
+  const activeOrient = state.previewOrientation || c.orientation;
+  const activeOrientLower = activeOrient.toLowerCase();
+  const altOrient = activeOrient === "Reversed" ? "Upright" : "Reversed";
+  const cat = state.category;
+
+  // Sync category pills active state
+  document.querySelectorAll("#categoryPills .cat-pill").forEach(pill => {
+    pill.classList.toggle("active", pill.dataset.cat === cat);
+  });
+
+  let categoriesHTML = "";
+  if (details && details[activeOrientLower]) {
+    const d = details[activeOrientLower];
+    const showAll = cat === "all";
+
+    categoriesHTML = `
+      <div class="deeper-box">
+        <div class="deeper-box-header">
+          <div class="deeper-title-group">
+            <h4>Deeper Meaning & Categories</h4>
+            <p>Exploring <strong>${activeOrient}</strong> archetypal interpretation for ${c.name}${state.previewOrientation ? ' <em>(Previewing Nuance)</em>' : ''}</p>
+          </div>
+          <button class="orientation-switch-btn" onclick="toggleOrientationPreview()" title="Compare ${altOrient} interpretation">
+            Compare ${altOrient} Nuance ↻
+          </button>
+        </div>
+
+        <div class="deeper-categories-grid">
+          <div class="cat-card cat-general" style="${!showAll && cat !== 'general' ? 'display:none;' : ''}">
+            <div class="cat-card-top">
+              <span class="cat-card-icon">🌟</span>
+              <span class="cat-card-name">General Meaning & Spiritual Theme</span>
+              <span class="cat-card-pill">${activeOrient}</span>
+            </div>
+            <p class="cat-card-body">${d.general}</p>
+          </div>
+
+          <div class="cat-card cat-love" style="${!showAll && cat !== 'love' ? 'display:none;' : ''}">
+            <div class="cat-card-top">
+              <span class="cat-card-icon">💖</span>
+              <span class="cat-card-name">Love & Relationships</span>
+              <span class="cat-card-pill">${activeOrient}</span>
+            </div>
+            <p class="cat-card-body">${d.love}</p>
+          </div>
+
+          <div class="cat-card cat-career" style="${!showAll && cat !== 'career' ? 'display:none;' : ''}">
+            <div class="cat-card-top">
+              <span class="cat-card-icon">💼</span>
+              <span class="cat-card-name">Career & Ambition</span>
+              <span class="cat-card-pill">${activeOrient}</span>
+            </div>
+            <p class="cat-card-body">${d.career}</p>
+          </div>
+
+          <div class="cat-card cat-finances" style="${!showAll && cat !== 'finances' ? 'display:none;' : ''}">
+            <div class="cat-card-top">
+              <span class="cat-card-icon">🪙</span>
+              <span class="cat-card-name">Finances & Wealth</span>
+              <span class="cat-card-pill">${activeOrient}</span>
+            </div>
+            <p class="cat-card-body">${d.finances}</p>
+          </div>
+
+          <div class="cat-card cat-advice" style="${!showAll && cat !== 'advice' ? 'display:none;' : ''}">
+            <div class="cat-card-top">
+              <span class="cat-card-icon">🧭</span>
+              <span class="cat-card-name">Guidance & Actionable Advice</span>
+              <span class="cat-card-pill">${activeOrient}</span>
+            </div>
+            <p class="cat-card-body">${d.advice}</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  $("detail").innerHTML = `
+    <div class="card-meaning-box">
+      <div class="card-meaning-head">
+        <span class="meaning-badge">✦ Card Meaning (${c.orientation})</span>
+        <span class="meaning-orient-tag">${posName}</span>
+      </div>
+      <h4>Position Reading</h4>
+      <p class="card-meaning-text">
+        This card reveals the energy surrounding <strong>${posName}</strong> in your spread.<br><br>
+        <strong>${c.orientation} Reading:</strong> ${meaning}
+      </p>
+    </div>
+    ${categoriesHTML}
+  `;
+}
+
+function toggleOrientationPreview() {
+  const c = state.cards[state.selected];
+  if (!c) return;
+  const current = state.previewOrientation || c.orientation;
+  state.previewOrientation = current === "Reversed" ? "Upright" : "Reversed";
+  renderSingleInterpretation();
 }
 
 function renderAllInterpretation() {
@@ -487,21 +588,48 @@ function renderAllInterpretation() {
   const allTab = state.allTab;
   const listEl = $("allCardsList");
 
+  // Sync active all-tab button
+  document.querySelectorAll("#allTabs .all-tab").forEach(tabBtn => {
+    tabBtn.classList.toggle("active", tabBtn.dataset.alltab === allTab);
+  });
+
   listEl.innerHTML = state.cards.map((c, i) => {
     const posName = s.positions[i];
     const posDesc = getPosDesc(state.key, i);
     const isSelected = state.selected === i;
     const meaning = c.orientation === "Reversed" ? c.reversed : c.upright;
     const fileName = encodeURIComponent(c.file);
+    const orientLower = c.orientation.toLowerCase();
+    const details = (typeof tarotCardDetails !== "undefined" && (tarotCardDetails[c.file] || tarotCardDetails[c.name])) || null;
 
     let tabContent = "";
     if (c.revealed) {
       if (allTab === "meaning") {
-        tabContent = `<p class="all-card-meaning"><strong>${c.orientation} Meaning:</strong> ${meaning}</p>`;
-      } else if (allTab === "reflect") {
-        tabContent = `<p class="all-card-meaning">Reflect on how <strong>${c.name}</strong> (${c.orientation}) influences <strong>${posName}</strong>. What insights arise when observing this interaction?</p>`;
+        tabContent = `<p class="all-card-meaning"><strong>${c.orientation} Reading for ${posName}:</strong> ${meaning}</p>`;
+      } else if (allTab === "general" && details) {
+        tabContent = `<div class="all-cat-item cat-general"><strong>🌟 General (${c.orientation}):</strong> ${details[orientLower].general}</div>`;
+      } else if (allTab === "love" && details) {
+        tabContent = `<div class="all-cat-item cat-love"><strong>💖 Love & Relationships (${c.orientation}):</strong> ${details[orientLower].love}</div>`;
+      } else if (allTab === "career" && details) {
+        tabContent = `<div class="all-cat-item cat-career"><strong>💼 Career & Ambition (${c.orientation}):</strong> ${details[orientLower].career}</div>`;
+      } else if (allTab === "finances" && details) {
+        tabContent = `<div class="all-cat-item cat-finances"><strong>🪙 Finances & Wealth (${c.orientation}):</strong> ${details[orientLower].finances}</div>`;
+      } else if (allTab === "advice" && details) {
+        tabContent = `<div class="all-cat-item cat-advice"><strong>🧭 Guidance & Advice (${c.orientation}):</strong> ${details[orientLower].advice}</div>`;
       } else {
-        tabContent = `<p class="all-card-meaning"><strong>Prompt:</strong> How can you apply the wisdom of <strong>${c.name}</strong> to align with the energy of <strong>${posName}</strong>?</p>`;
+        // "all" - Full Reading with Position Meaning + Deeper Breakdown
+        tabContent = `
+          <p class="all-card-meaning"><strong>${c.orientation} Reading for ${posName}:</strong> ${meaning}</p>
+          ${details ? `
+            <div class="all-card-categories">
+              <div class="all-cat-item cat-general"><strong>🌟 General:</strong> ${details[orientLower].general}</div>
+              <div class="all-cat-item cat-love"><strong>💖 Love:</strong> ${details[orientLower].love}</div>
+              <div class="all-cat-item cat-career"><strong>💼 Career:</strong> ${details[orientLower].career}</div>
+              <div class="all-cat-item cat-finances"><strong>🪙 Finances:</strong> ${details[orientLower].finances}</div>
+              <div class="all-cat-item cat-advice"><strong>🧭 Advice:</strong> ${details[orientLower].advice}</div>
+            </div>
+          ` : ''}
+        `;
       }
     }
 
@@ -569,23 +697,23 @@ function renderLegend() {
   });
 }
 
-// Single card tabs
-document.querySelectorAll(".single-view .tab").forEach(b => {
+// Category pills in single view
+document.querySelectorAll("#categoryPills .cat-pill").forEach(b => {
   b.onclick = () => {
-    state.tab = b.dataset.tab;
-    document.querySelectorAll(".single-view .tab").forEach(x => x.classList.remove("active"));
+    state.category = b.dataset.cat;
+    document.querySelectorAll("#categoryPills .cat-pill").forEach(x => x.classList.remove("active"));
     b.classList.add("active");
-    renderInterpretation();
+    renderSingleInterpretation();
   };
 });
 
 // All cards tabs
-document.querySelectorAll(".all-tab").forEach(b => {
+document.querySelectorAll("#allTabs .all-tab").forEach(b => {
   b.onclick = () => {
     state.allTab = b.dataset.alltab;
-    document.querySelectorAll(".all-tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll("#allTabs .all-tab").forEach(x => x.classList.remove("active"));
     b.classList.add("active");
-    renderInterpretation();
+    renderAllInterpretation();
   };
 });
 
