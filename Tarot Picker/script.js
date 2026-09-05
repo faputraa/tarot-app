@@ -260,15 +260,17 @@ function renderStage() {
   if (s.type === "twelve") {
     stage.innerHTML = `<div class="year-wheel"><div class="sun">☾</div>${state.cards.map((c, i) => `
       <div class="wheel-slot" style="--angle:${i * 30}deg">
-        <div class="wheel-card"><div class="month-number">${i + 1}</div><div class="month-name">${monthNames[i]}</div>${cardHTML(c, i, true)}</div>
+        <div class="wheel-card"><div class="month-number" data-i="${i}">${i + 1}</div><div class="month-name" data-i="${i}">${monthNames[i]}</div>${cardHTML(c, i, true)}</div>
       </div>`).join("")}</div>`;
   } else {
     stage.innerHTML = `<div class="cards-grid">${state.cards.map((c, i) => `
-      <div class="card-slot"><div class="position">${s.positions[i]}</div>${cardHTML(c, i, false)}</div>`).join("")}</div>`;
+      <div class="card-slot"><div class="position" data-i="${i}">${s.positions[i]}</div>${cardHTML(c, i, false)}</div>`).join("")}</div>`;
   }
-  stage.querySelectorAll(".card").forEach(el => {
+  stage.querySelectorAll(".card, .month-number, .month-name, .card-slot .position").forEach(el => {
     const i = +el.dataset.i;
-    el.onclick = () => {
+    if (isNaN(i)) return;
+    el.onclick = (e) => {
+      e.stopPropagation();
       if (!state.cards[i].revealed) {
         reveal(i);
       } else {
@@ -304,12 +306,22 @@ function renderStage() {
       else showSpan();
     }
   });
+  updateStageSelection();
 }
 
 function updateStageSelection() {
   document.querySelectorAll(".spread-stage .card").forEach(el => {
     const i = +el.dataset.i;
-    el.classList.toggle("selected", state.selected === i);
+    const isSelected = state.selected === i;
+    el.classList.toggle("selected", isSelected);
+    const slot = el.closest(".card-slot, .wheel-slot");
+    if (slot) {
+      slot.classList.toggle("selected-slot", isSelected);
+      if (state.cards[i]) {
+        slot.classList.toggle("unrevealed-slot", !state.cards[i].revealed);
+        slot.classList.toggle("revealed-slot", state.cards[i].revealed);
+      }
+    }
   });
 }
 
@@ -465,32 +477,43 @@ function renderSingleInterpretation() {
     return;
   }
 
-  const meaning = c.orientation === "Reversed" ? c.reversed : c.upright;
+  // Active orientation (respects preview toggle if user compares nuances, otherwise card's drawn orientation)
+  const activeOrient = state.previewOrientation || (c ? c.orientation : "Upright");
+  const isReversed = activeOrient === "Reversed";
+  const activeOrientLower = activeOrient.toLowerCase();
+  const altOrient = isReversed ? "Upright" : "Reversed";
+  const cat = state.category;
+  const isPreviewing = state.previewOrientation && state.previewOrientation !== c.orientation;
+
+  // Selected meaning based on active orientation
+  const meaning = isReversed ? c.reversed : c.upright;
   const fileName = encodeURIComponent(c.file);
+
   $("selectedCard").innerHTML = `
-    <div class="symbol card-preview ${c.orientation === "Reversed" ? "reversed" : ""}">
+    <div class="symbol card-preview ${isReversed ? "reversed" : ""}">
       <img src="cards/${fileName}.jpg" alt="${c.name}" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='block'" onload="if(this.nextElementSibling)this.nextElementSibling.style.display='none'">
       <span style="display:block">${c.roman}</span>
     </div>
     <div>
-      <div class="eyebrow">${posName} · Position ${i + 1}</div>
-      <h3>${c.name} · ${c.orientation}</h3>
-      <strong>${c.orientation === "Reversed" ? "Reversed meaning" : "Upright meaning"}</strong>
+      <div class="eyebrow">${posName} · Position ${i + 1}${isPreviewing ? ' · Previewing ' + activeOrient : ''}</div>
+      <h3>${c.name} · ${activeOrient}</h3>
+      <strong style="color:${isReversed ? 'var(--gold)' : 'var(--purple)'}">${isReversed ? "Reversed meaning" : "Upright meaning"}</strong>
       <p>${meaning}</p>
     </div>
   `;
-
-  // Deeper Details
-  const details = (typeof tarotCardDetails !== "undefined" && (tarotCardDetails[c.file] || tarotCardDetails[c.name])) || null;
-  const activeOrient = state.previewOrientation || c.orientation;
-  const activeOrientLower = activeOrient.toLowerCase();
-  const altOrient = activeOrient === "Reversed" ? "Upright" : "Reversed";
-  const cat = state.category;
 
   // Sync category pills active state
   document.querySelectorAll("#categoryPills .cat-pill").forEach(pill => {
     pill.classList.toggle("active", pill.dataset.cat === cat);
   });
+
+  // Position interpretation text tailored specifically to orientation
+  const positionContextText = isReversed
+    ? `In reverse, <strong>${c.name}</strong> signifies an internal blockage, resistance, delayed manifestation, or shadow aspect surrounding <strong>${posName}</strong> in your spread.`
+    : `In this upright position, <strong>${c.name}</strong> channels its active, direct archetype into <strong>${posName}</strong> in your spread.`;
+
+  // Deeper Details
+  const details = (typeof tarotCardDetails !== "undefined" && (tarotCardDetails[c.file] || tarotCardDetails[c.name])) || null;
 
   let categoriesHTML = "";
   if (details && details[activeOrientLower]) {
@@ -502,7 +525,7 @@ function renderSingleInterpretation() {
         <div class="deeper-box-header">
           <div class="deeper-title-group">
             <h4>Deeper Meaning & Categories</h4>
-            <p>Exploring <strong>${activeOrient}</strong> archetypal interpretation for ${c.name}${state.previewOrientation ? ' <em>(Previewing Nuance)</em>' : ''}</p>
+            <p>Exploring <strong>${activeOrient}</strong> archetypal interpretation for ${c.name}${isPreviewing ? ' <em>(Previewing Nuance)</em>' : ''}</p>
           </div>
           <button class="orientation-switch-btn" onclick="toggleOrientationPreview()" title="Compare ${altOrient} interpretation">
             Compare ${altOrient} Nuance ↻
@@ -562,13 +585,13 @@ function renderSingleInterpretation() {
   $("detail").innerHTML = `
     <div class="card-meaning-box">
       <div class="card-meaning-head">
-        <span class="meaning-badge">✦ Card Meaning (${c.orientation})</span>
-        <span class="meaning-orient-tag">${posName}</span>
+        <span class="meaning-badge">✦ Card Meaning (${activeOrient})</span>
+        <span class="meaning-orient-tag">${posName} · ${isReversed ? 'Blocked / Shadow' : 'Direct'}</span>
       </div>
       <h4>Position Reading</h4>
       <p class="card-meaning-text">
-        This card reveals the energy surrounding <strong>${posName}</strong> in your spread.<br><br>
-        <strong>${c.orientation} Reading:</strong> ${meaning}
+        ${positionContextText}<br><br>
+        <strong>${activeOrient} Reading:</strong> ${meaning}
       </p>
     </div>
     ${categoriesHTML}
@@ -597,7 +620,8 @@ function renderAllInterpretation() {
     const posName = s.positions[i];
     const posDesc = getPosDesc(state.key, i);
     const isSelected = state.selected === i;
-    const meaning = c.orientation === "Reversed" ? c.reversed : c.upright;
+    const isReversed = c.orientation === "Reversed";
+    const meaning = isReversed ? c.reversed : c.upright;
     const fileName = encodeURIComponent(c.file);
     const orientLower = c.orientation.toLowerCase();
     const details = (typeof tarotCardDetails !== "undefined" && (tarotCardDetails[c.file] || tarotCardDetails[c.name])) || null;
@@ -605,7 +629,13 @@ function renderAllInterpretation() {
     let tabContent = "";
     if (c.revealed) {
       if (allTab === "meaning") {
-        tabContent = `<p class="all-card-meaning"><strong>${c.orientation} Reading for ${posName}:</strong> ${meaning}</p>`;
+        tabContent = `
+          <p class="all-card-meaning">
+            <strong>${c.orientation} Reading for ${posName}:</strong> ${meaning}
+            <span class="all-card-pos-note" style="display:block;margin-top:4px;color:var(--muted);font-size:11px;">
+              ${isReversed ? '✦ Inverted influence: blockage, delay, or internal reflection in this position.' : '✦ Direct influence: forward-moving manifestation in this position.'}
+            </span>
+          </p>`;
       } else if (allTab === "general" && details) {
         tabContent = `<div class="all-cat-item cat-general"><strong>🌟 General (${c.orientation}):</strong> ${details[orientLower].general}</div>`;
       } else if (allTab === "love" && details) {
@@ -619,14 +649,19 @@ function renderAllInterpretation() {
       } else {
         // "all" - Full Reading with Position Meaning + Deeper Breakdown
         tabContent = `
-          <p class="all-card-meaning"><strong>${c.orientation} Reading for ${posName}:</strong> ${meaning}</p>
+          <p class="all-card-meaning">
+            <strong>${c.orientation} Reading for ${posName}:</strong> ${meaning}
+            <span class="all-card-pos-note" style="display:block;margin-top:4px;color:var(--muted);font-size:11px;">
+              ${isReversed ? '✦ Inverted influence: blockage, delay, or internal reflection in this position.' : '✦ Direct influence: forward-moving manifestation in this position.'}
+            </span>
+          </p>
           ${details ? `
             <div class="all-card-categories">
-              <div class="all-cat-item cat-general"><strong>🌟 General:</strong> ${details[orientLower].general}</div>
-              <div class="all-cat-item cat-love"><strong>💖 Love:</strong> ${details[orientLower].love}</div>
-              <div class="all-cat-item cat-career"><strong>💼 Career:</strong> ${details[orientLower].career}</div>
-              <div class="all-cat-item cat-finances"><strong>🪙 Finances:</strong> ${details[orientLower].finances}</div>
-              <div class="all-cat-item cat-advice"><strong>🧭 Advice:</strong> ${details[orientLower].advice}</div>
+              <div class="all-cat-item cat-general"><strong>🌟 General (${c.orientation}):</strong> ${details[orientLower].general}</div>
+              <div class="all-cat-item cat-love"><strong>💖 Love (${c.orientation}):</strong> ${details[orientLower].love}</div>
+              <div class="all-cat-item cat-career"><strong>💼 Career (${c.orientation}):</strong> ${details[orientLower].career}</div>
+              <div class="all-cat-item cat-finances"><strong>🪙 Finances (${c.orientation}):</strong> ${details[orientLower].finances}</div>
+              <div class="all-cat-item cat-advice"><strong>🧭 Advice (${c.orientation}):</strong> ${details[orientLower].advice}</div>
             </div>
           ` : ''}
         `;

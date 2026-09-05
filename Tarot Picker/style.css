@@ -86,7 +86,7 @@ button:focus-visible{outline:2px solid var(--purple);outline-offset:3px}
 }
 .cards-grid{display:grid;gap:38px 44px;justify-content:center;align-items:start;width:min(100%,1100px)}
 .card-slot{text-align:center;min-width:146px}
-.position{font-size:10px;color:var(--gold);font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:9px;min-height:13px}
+.position{font-size:10px;color:var(--gold);font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:9px;min-height:13px;cursor:pointer;user-select:none}
 .card{
   width:146px;height:256px;aspect-ratio:300/527;perspective:1100px;cursor:pointer;margin:auto
 }
@@ -508,9 +508,27 @@ body.dark .legend-item .card-tag{
 
 .spread-celtic .spread-stage{min-height:920px}
 .spread-celtic .cards-grid{position:relative;width:720px;height:880px;display:block}
-.spread-celtic .card-slot{position:absolute}
-.spread-celtic .card-slot:nth-child(1){left:180px;top:300px}
+.spread-celtic .card-slot{position:absolute;pointer-events:none}
+.spread-celtic .card-slot .card,
+.spread-celtic .card-slot .position{pointer-events:auto}
+
+/* Slot 1: Present Situation */
+.spread-celtic .card-slot:nth-child(1){left:180px;top:300px;z-index:1}
+.spread-celtic .card-slot:nth-child(1).unrevealed-slot,
+.spread-celtic .card-slot:nth-child(1):has(.card:not(.revealed)){z-index:5}
+.spread-celtic .card-slot:nth-child(1):hover{z-index:10}
+.spread-celtic .card-slot:nth-child(1).selected-slot,
+.spread-celtic .card-slot:nth-child(1):has(.card.selected){z-index:10}
+
+/* Slot 2: The Challenge (Crossing Card) */
 .spread-celtic .card-slot:nth-child(2){left:180px;top:300px;z-index:2}
+.spread-celtic .card-slot:nth-child(2).unrevealed-slot,
+.spread-celtic .card-slot:nth-child(2):has(.card:not(.revealed)){z-index:3}
+.spread-celtic .card-slot:nth-child(2):hover{z-index:10}
+.spread-celtic .card-slot:nth-child(2).selected-slot,
+.spread-celtic .card-slot:nth-child(2):has(.card.selected){z-index:10}
+.spread-celtic .card-slot:nth-child(2) .card{transform:rotate(90deg);transform-origin:center}
+.spread-celtic .card-slot:nth-child(2) .position{visibility:hidden;pointer-events:none}
 .spread-celtic .card-slot:nth-child(3){left:180px;top:600px}
 .spread-celtic .card-slot:nth-child(4){left:0;top:300px}
 .spread-celtic .card-slot:nth-child(5){left:180px;top:0}
@@ -519,27 +537,56 @@ body.dark .legend-item .card-tag{
 .spread-celtic .card-slot:nth-child(8){left:555px;top:420px}
 .spread-celtic .card-slot:nth-child(9){left:555px;top:230px}
 .spread-celtic .card-slot:nth-child(10){left:555px;top:40px}
-.spread-celtic .card-slot:nth-child(2) .card{transform:rotate(90deg);transform-origin:center}
-.spread-celtic .card-slot:nth-child(2) .position{display:none}
 
-.spread-twelve .spread-stage{min-height:720px}
-.year-wheel{position:relative;width:680px;height:680px;margin:auto}
-.year-wheel:before,.year-wheel:after{content:"";position:absolute;border:1px dashed rgba(182,139,60,.2);border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%)}
-.year-wheel:before{width:440px;height:440px}.year-wheel:after{width:590px;height:590px}
+.spread-twelve .spread-stage{min-height:940px}
+.year-wheel{position:relative;width:840px;height:840px;margin:auto;pointer-events:none}
+.year-wheel:before,.year-wheel:after{
+  content:"";position:absolute;border:1px dashed rgba(182,139,60,.2);
+  border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+.year-wheel:before{width:540px;height:540px}
+.year-wheel:after{width:730px;height:730px}
 .sun{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:150px;height:150px;border-radius:50%;
   display:grid;place-items:center;border:1px solid rgba(182,139,60,.32);color:var(--gold);font-size:52px;
-  background:radial-gradient(circle,rgba(217,191,134,.1),transparent 68%)
+  background:radial-gradient(circle,rgba(217,191,134,.1),transparent 68%);
+  pointer-events:none;
 }
-.wheel-slot{position:absolute;left:50%;top:50%;width:146px;text-align:center;transform:translate(-50%,-50%) rotate(var(--angle)) translateY(-285px)}
-.wheel-slot .wheel-card{transform:rotate(calc(-1 * var(--angle)))}
-.wheel-slot .position{margin-bottom:7px}
-.wheel-slot .month-number{color:var(--purple);font-size:11px;font-weight:800}
-.wheel-slot .month-name{font-size:12px;margin-bottom:7px}
-.wheel-slot .card{width:116px;height:204px;aspect-ratio:300/527}
-.wheel-slot .card-info{padding:14px 4px 6px}
-.wheel-slot .card-info .name{font-size:10px}
-.wheel-slot .card-info .badge{font-size:7px;padding:2px 5px;margin-top:3px}
+.wheel-slot{
+  position:absolute;left:50%;top:50%;width:90px;text-align:center;
+  transform:translate(-50%,-50%) rotate(var(--angle)) translateY(-365px);
+  pointer-events:none;z-index:10;
+}
+.wheel-slot:hover{z-index:50}
+.wheel-slot .wheel-card{
+  transform:rotate(calc(-1 * var(--angle)));
+  pointer-events:none;
+  display:inline-flex;flex-direction:column;align-items:center;
+}
+.wheel-slot .month-number{
+  color:var(--purple);font-size:11px;font-weight:800;line-height:1.2;
+  cursor:pointer;pointer-events:auto;user-select:none;
+  transition:color .2s ease;
+}
+.wheel-slot .month-name{
+  font-size:11px;margin-bottom:4px;line-height:1.2;
+  cursor:pointer;pointer-events:auto;user-select:none;
+  transition:color .2s ease;
+}
+.wheel-slot:hover .month-number,.wheel-slot:hover .month-name{
+  color:var(--gold);
+}
+.wheel-slot .card{
+  width:90px;height:158px;aspect-ratio:300/527;
+  cursor:pointer;pointer-events:auto;position:relative;z-index:15;
+}
+.wheel-slot .card:hover{z-index:60}
+.wheel-slot .card .back:before{width:64px;height:64px;font-size:32px}
+.wheel-slot .card .back:after{inset:8px}
+.wheel-slot .card-info{padding:10px 4px 5px}
+.wheel-slot .card-info .name{font-size:9px}
+.wheel-slot .card-info .badge{font-size:6.5px;padding:2px 4px;margin-top:2px}
 
 .complete-reading{padding-bottom:8px}
 
