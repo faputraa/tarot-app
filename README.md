@@ -32,4 +32,4 @@ No special package manager is required to run the project. You only need a moder
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/faputraa/tarot-app.git](https://github.com/faputraa/tarot-app.git)
+   git clone https://github.com/faputraa/tarot-app.git
