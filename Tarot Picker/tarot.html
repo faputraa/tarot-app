@@ -114,6 +114,144 @@
 </section>
 </div>
 
+<!-- Floating Action Button (FAB) -->
+<button id="arcanaFab" class="arcana-fab idle" title="Draw cards to consult the Arcana" aria-label="Consult the Arcana">
+  <span class="fab-sparkle">✨</span>
+  <span class="fab-label">Consult the Arcana</span>
+</button>
+
+<!-- Arcana Slide-over Drawer & Overlay Backdrop -->
+<div id="arcanaBackdrop" class="arcana-backdrop" aria-hidden="true"></div>
+<aside id="arcanaDrawer" class="arcana-drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+  <div class="drawer-header">
+    <div class="drawer-title-area">
+      <h2 id="drawerTitle" class="drawer-title">✦ Arcana's Guidance</h2>
+      <span id="drawerProviderBadge" class="drawer-provider-badge" title="Active AI Provider">Google Gemini</span>
+    </div>
+    <div class="drawer-header-actions">
+      <button id="drawerSettingsBtn" class="drawer-icon-btn" title="AI Provider & Key Settings">⚙</button>
+      <button id="drawerCloseBtn" class="drawer-icon-btn" title="Close drawer (Esc)">✕</button>
+    </div>
+  </div>
+
+  <div class="drawer-body">
+    <!-- View A: Key Configuration & Provider Setup -->
+    <div id="drawerSettingsView" class="drawer-view" style="display:none;">
+      <div class="byok-banner">
+        <div class="byok-title">🔒 Pure Client-Side (BYOK)</div>
+        <p>Your API key and readings are stored strictly in your browser's <code>localStorage</code>. Requests are dispatched directly from your browser to the AI provider with zero middleman or telemetry.</p>
+      </div>
+
+      <div class="drawer-field">
+        <label for="providerSelect" class="drawer-label">AI Provider</label>
+        <select id="providerSelect" class="drawer-select">
+          <option value="gemini" selected>Google Gemini (Recommended — Free Tier, No CC)</option>
+          <option value="groq">Groq (Ultra-fast — Free Tier Available)</option>
+          <option value="openrouter">OpenRouter (Multi-Model Hub)</option>
+          <option value="openai">OpenAI (Requires Funded Account)</option>
+        </select>
+      </div>
+
+      <div class="drawer-field">
+        <label for="modelSelect" class="drawer-label">Model</label>
+        <select id="modelSelect" class="drawer-select">
+          <!-- Populated dynamically based on provider -->
+        </select>
+      </div>
+
+      <div id="tutorialGuideBox" class="tutorial-guide-box">
+        <!-- Populated dynamically with direct link and 2-step tutorial -->
+      </div>
+
+      <div class="drawer-field">
+        <div class="field-label-row">
+          <label for="apiKeyInput" class="drawer-label">API Key</label>
+          <span id="keyStatusIndicator" class="key-status-indicator">Not Configured</span>
+        </div>
+        <div class="key-input-wrap">
+          <input type="password" id="apiKeyInput" class="drawer-input" placeholder="Paste your API key here..." autocomplete="off" spellcheck="false">
+          <button type="button" id="toggleKeyVisibilityBtn" class="toggle-key-btn" title="Toggle visibility">👁</button>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button type="button" id="saveKeyBtn" class="primary save-key-btn">✦ Save & Connect</button>
+        <button type="button" id="removeKeyBtn" class="ghost remove-key-btn" style="display:none;">Remove Key</button>
+      </div>
+
+      <div id="settingsMessage" class="settings-message" style="display:none;"></div>
+
+      <div class="settings-back-row">
+        <button type="button" id="backToConsultBtn" class="ghost-sm" style="display:none;">← Return to Reading</button>
+      </div>
+    </div>
+
+    <!-- View B: Active Interpretation Screen -->
+    <div id="drawerConsultView" class="drawer-view">
+      <!-- Spread Summary -->
+      <div id="drawerSpreadSummary" class="spread-summary-box">
+        <div class="summary-head">
+          <span class="summary-spread-name" id="summarySpreadName">Current Spread</span>
+          <span class="summary-revealed-count" id="summaryRevealedCount">0 Cards</span>
+        </div>
+        <div id="summaryCardsList" class="summary-cards-chips">
+          <!-- Card chips injected here -->
+        </div>
+      </div>
+
+      <!-- Question Input -->
+      <div class="drawer-field">
+        <label for="drawerQuestionInput" class="drawer-label">Specific Focus Question (Optional)</label>
+        <textarea id="drawerQuestionInput" class="drawer-textarea" rows="3" placeholder="e.g. What energy should I embrace regarding my creative project or relationship?"></textarea>
+        <div class="question-chips" id="questionChips">
+          <button type="button" class="question-chip" data-q="What is my biggest blind spot or hidden influence right now?">Hidden Influence</button>
+          <button type="button" class="question-chip" data-q="What actionable advice should I heed in the near future?">Actionable Advice</button>
+          <button type="button" class="question-chip" data-q="How does this spread reflect my career and creative ambitions?">Career Focus</button>
+          <button type="button" class="question-chip" data-q="What emotional lessons or relationship insights are here for me?">Love & Growth</button>
+        </div>
+      </div>
+
+      <!-- Main Action Button -->
+      <button id="drawerAskBtn" class="primary drawer-ask-btn">
+        <span class="ask-btn-icon">✦</span>
+        <span class="ask-btn-text">Reveal Arcana's Guidance</span>
+      </button>
+
+      <!-- Loading State -->
+      <div id="drawerLoading" class="drawer-loading" style="display:none;">
+        <div class="loading-celestial">
+          <div class="celestial-orb">✦</div>
+          <div class="shimmer-bars">
+            <div class="shimmer-line"></div>
+            <div class="shimmer-line short"></div>
+            <div class="shimmer-line medium"></div>
+          </div>
+        </div>
+        <p class="loading-text">Channeling ethereal archetypes & weaving the narrative...</p>
+      </div>
+
+      <!-- Error Message -->
+      <div id="drawerError" class="drawer-error" style="display:none;">
+        <div class="error-icon">⚠</div>
+        <div class="error-content">
+          <div class="error-title">Consultation Interrupted</div>
+          <div id="drawerErrorMessage" class="error-text"></div>
+          <button id="errorFixBtn" class="ghost-sm error-fix-btn">Verify Key Settings</button>
+        </div>
+      </div>
+
+      <!-- Reading Output -->
+      <div id="drawerReadingOutput" class="drawer-reading-output" style="display:none;">
+        <div class="reading-header">
+          <span class="reading-eyebrow">The Arcana Speaks</span>
+          <button id="copyReadingBtn" class="ghost-sm copy-btn" title="Copy interpretation to clipboard">📋 Copy</button>
+        </div>
+        <div id="readingContent" class="reading-markdown-content"></div>
+      </div>
+    </div>
+  </div>
+</aside>
+
 <script src="tarotData.js"></script>
 <script src="script.js"></script>
 </body>

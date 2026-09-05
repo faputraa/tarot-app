@@ -239,6 +239,7 @@ function goSelection() {
   $("selection").classList.add("active");
   $("topTitle").textContent = "Choose a Spread";
   $("topSubtitle").textContent = "A quiet moment for reflection";
+  updateArcanaFab();
   window.scrollTo({top: 0, behavior: "smooth"});
 }
 
@@ -434,6 +435,7 @@ function updateProgress() {
     $("revealAllInAllBtn").disabled = n === total;
     $("revealAllInAllBtn").textContent = n === total ? "All Cards Revealed ✓" : "✦ Reveal All Cards";
   }
+  updateArcanaFab();
 }
 
 function renderInterpretation() {
@@ -788,6 +790,19 @@ if (localStorage.getItem("arcana-theme") === "dark") {
 
 // Keyboard navigation
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    const drawer = $("arcanaDrawer");
+    if (drawer && drawer.classList.contains("open")) {
+      closeArcanaDrawer();
+      return;
+    }
+  }
+
+  // Do not intercept keystrokes if typing inside an input or textarea
+  if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable)) {
+    return;
+  }
+
   if (!$("reading").classList.contains("active")) return;
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
@@ -799,4 +814,758 @@ document.addEventListener("keydown", e => {
     if (state.selected < state.cards.length - 1) selectPosition(state.selected + 1);
   }
 });
+
+/* ==========================================================================
+   Multi-Provider "Ask the Arcana" Slide-over Drawer (BYOK) Engine
+   ========================================================================== */
+
+const AI_PROVIDERS = {
+  gemini: {
+    name: "Google Gemini",
+    badge: "Gemini",
+    defaultModel: "gemini-3.6-flash",
+    models: [
+      { id: "gemini-3.6-flash", label: "gemini-3.6-flash (Recommended Default)" },
+      { id: "gemini-3.7-flash", label: "gemini-3.7-flash (Latest Speed & Reasoning)" },
+      { id: "gemini-3.5-flash", label: "gemini-3.5-flash (Balanced)" }
+    ],
+    keyPlaceholder: "AIzaSy...",
+    tutorial: {
+      url: "https://aistudio.google.com/app/apikey",
+      portalName: "Google AI Studio",
+      steps: [
+        "Sign in with your Google account (completely free, no credit card required).",
+        "Click <strong>'Create API key'</strong>, copy your key, and paste it below."
+      ]
+    }
+  },
+  groq: {
+    name: "Groq",
+    badge: "Groq",
+    defaultModel: "llama-3.3-70b-versatile",
+    models: [
+      { id: "llama-3.3-70b-versatile", label: "llama-3.3-70b-versatile (Recommended)" },
+      { id: "llama-3.1-8b-instant", label: "llama-3.1-8b-instant (Ultra-fast)" }
+    ],
+    keyPlaceholder: "gsk_...",
+    tutorial: {
+      url: "https://console.groq.com/keys",
+      portalName: "Groq Cloud Console",
+      steps: [
+        "Sign up or log in with Google/GitHub (free tier available).",
+        "Navigate to <strong>API Keys</strong>, click <strong>Create API Key</strong>, and paste it below."
+      ]
+    }
+  },
+  openrouter: {
+    name: "OpenRouter",
+    badge: "OpenRouter",
+    defaultModel: "google/gemini-3.6-flash",
+    models: [
+      { id: "google/gemini-3.6-flash", label: "google/gemini-3.6-flash (Recommended)" },
+      { id: "meta-llama/llama-3.3-70b-instruct:free", label: "meta-llama/llama-3.3-70b-instruct:free (Free)" }
+    ],
+    keyPlaceholder: "sk-or-v1-...",
+    tutorial: {
+      url: "https://openrouter.ai/keys",
+      portalName: "OpenRouter Keys",
+      steps: [
+        "Create an account or log in to OpenRouter.",
+        "Under <strong>Keys</strong>, generate a key and paste it below."
+      ]
+    }
+  },
+  openai: {
+    name: "OpenAI",
+    badge: "OpenAI",
+    defaultModel: "gpt-4o-mini",
+    models: [
+      { id: "gpt-4o-mini", label: "gpt-4o-mini (Fast & affordable)" },
+      { id: "gpt-4o", label: "gpt-4o (Flagship reasoning)" }
+    ],
+    keyPlaceholder: "sk-proj-...",
+    tutorial: {
+      url: "https://platform.openai.com/api-keys",
+      portalName: "OpenAI Platform",
+      steps: [
+        "Sign in to your OpenAI developer account (requires credit balance).",
+        "Under <strong>API Keys</strong>, generate a new secret key, and paste it below."
+      ]
+    }
+  }
+};
+
+// Automatic LocalStorage Migration for Legacy Models
+function migrateLegacyModels() {
+  const legacyModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+
+  // 1. Single model key check
+  const savedSingle = localStorage.getItem('arcana_ai_model');
+  if (!savedSingle || legacyModels.includes(savedSingle)) {
+    localStorage.setItem('arcana_ai_model', 'gemini-3.6-flash');
+  }
+
+  // 2. Per-provider JSON dictionary check
+  try {
+    const models = JSON.parse(localStorage.getItem('arcana_ai_models') || '{}');
+    let changed = false;
+    if (!models.gemini || legacyModels.includes(models.gemini)) {
+      models.gemini = 'gemini-3.6-flash';
+      changed = true;
+    }
+    if (!models.openrouter || legacyModels.some(m => String(models.openrouter).includes(m)) || models.openrouter === 'anthropic/claude-3.5-haiku') {
+      models.openrouter = 'google/gemini-3.6-flash';
+      changed = true;
+    }
+    if (models.groq === 'llama-3.1-8b-instant' || !models.groq) {
+      models.groq = 'llama-3.3-70b-versatile';
+      changed = true;
+    }
+    if (changed) {
+      localStorage.setItem('arcana_ai_models', JSON.stringify(models));
+    }
+  } catch (e) {}
+}
+migrateLegacyModels();
+
+const TAROT_SYSTEM_PROMPT = `You are a perceptive, compassionate, and seasoned tarot scholar and intuitive guide.
+Your purpose is to synthesize a profound, empowering narrative interpretation of the querent's tarot spread.
+
+Guidelines:
+1. Narrative Synthesis: Do not simply list disjointed card definitions. Interweave the cards into a cohesive story, explaining how foundational influences lead into challenges, present dynamics, and emerging possibilities.
+2. Orientation Nuance: Honor Upright cards as outward, direct, and flowing manifestations, and Reversed cards as internal reflection, delays, shadowed lessons, or redirected energy.
+3. Querent Focus: Directly address the querent's specific question (if provided) and illuminate practical avenues forward.
+4. Tone & Style: Warm, reflective, wise, and grounded. Avoid fatalism; empower the querent's agency and discernment.
+5. Formatting: Use clear Markdown with evocative headers (###), bold card names, and concise bullet points for actionable guidance.`;
+
+let currentReadingRaw = "";
+let isGeneratingReading = false;
+
+// LocalStorage Helpers
+function getStoredKeys() {
+  try {
+    return JSON.parse(localStorage.getItem("arcana_ai_keys") || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveStoredKey(provider, key) {
+  const keys = getStoredKeys();
+  if (key) {
+    keys[provider] = key.trim();
+  } else {
+    delete keys[provider];
+  }
+  localStorage.setItem("arcana_ai_keys", JSON.stringify(keys));
+}
+
+function removeStoredKey(provider) {
+  const keys = getStoredKeys();
+  delete keys[provider];
+  localStorage.setItem("arcana_ai_keys", JSON.stringify(keys));
+}
+
+function getActiveProvider() {
+  const p = localStorage.getItem("arcana_ai_provider");
+  return (p && AI_PROVIDERS[p]) ? p : "gemini";
+}
+
+function setActiveProvider(provider) {
+  if (AI_PROVIDERS[provider]) {
+    localStorage.setItem("arcana_ai_provider", provider);
+  }
+}
+
+function getSelectedModels() {
+  try {
+    return JSON.parse(localStorage.getItem("arcana_ai_models") || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function setSelectedModel(provider, model) {
+  const m = getSelectedModels();
+  m[provider] = model;
+  localStorage.setItem("arcana_ai_models", JSON.stringify(m));
+  if (provider === "gemini") {
+    localStorage.setItem("arcana_ai_model", model);
+  }
+}
+
+function getModelForProvider(provider) {
+  const config = AI_PROVIDERS[provider];
+  if (!config) return "";
+  const m = getSelectedModels();
+  const current = m[provider] || (provider === "gemini" ? localStorage.getItem("arcana_ai_model") : null);
+  const validModelIds = config.models.map(opt => opt.id);
+  if (current && validModelIds.includes(current)) {
+    return current;
+  }
+  return config.defaultModel;
+}
+
+// XSS-Safe Custom Markdown Renderer
+function renderSafeMarkdown(md) {
+  if (!md) return "";
+  // 1. Sanitize/escape HTML characters to prevent XSS
+  let html = md
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // 2. Headings
+  html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
+  html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
+  html = html.replace(/^# (.*$)/gim, "<h2>$1</h2>");
+
+  // 3. Blockquotes
+  html = html.replace(/^(?:&gt;|>)\s+(.*$)/gim, "<blockquote>$1</blockquote>");
+
+  // 4. Bold and Italic
+  html = html.replace(/\*\*\*(.*?)\*\*\*/gim, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*(.*?)\*\*/gim, "<strong>$1</strong>");
+  html = html.replace(/\*(.*?)\*/gim, "<em>$1</em>");
+
+  // 5. Unordered lists (- item or * item)
+  html = html.replace(/^(?:[-*]\s+)(.+)$/gim, "<li>$1</li>");
+  html = html.replace(/(<li>[\s\S]*?<\/li>)/gim, "<ul>$1</ul>");
+  html = html.replace(/<\/ul>\s*<ul>/gim, "");
+
+  // 6. Numbered lists (1. item)
+  html = html.replace(/^(?:\d+\.\s+)(.+)$/gim, "<nli>$1</nli>");
+  html = html.replace(/(<nli>[\s\S]*?<\/nli>)/gim, "<ol>$1</ol>");
+  html = html.replace(/<nli>/gim, "<li>").replace(/<\/nli>/gim, "</li>");
+  html = html.replace(/<\/ol>\s*<ol>/gim, "");
+
+  // 7. Paragraphs: split by double newlines, wrap non-block elements in <p>
+  const blocks = html.split(/\n\n+/);
+  return blocks.map(block => {
+    block = block.trim();
+    if (!block) return "";
+    if (/^(?:<h2>|<h3>|<ul>|<ol>|<blockquote>)/i.test(block)) {
+      return block;
+    }
+    return `<p>${block.replace(/\n/g, "<br>")}</p>`;
+  }).join("");
+}
+
+// Prompt Builder
+function buildTarotPrompt(spreadTitle, cards, userQuestion) {
+  let prompt = `Spread: ${spreadTitle}\n\nCards in Spread:\n`;
+  cards.forEach((c, idx) => {
+    const orientationDesc = c.orientation === "Reversed" ? "Reversed" : "Upright";
+    const statusDesc = c.revealed ? "Revealed" : "Facing Down (Pending Revelation)";
+    prompt += `${idx + 1}. Position: "${c.position}" — Card: ${c.name} (${orientationDesc}) [${statusDesc}]\n`;
+    const essence = c.orientation === "Reversed" ? c.reversed : c.upright;
+    if (c.revealed && essence) {
+      prompt += `   Position Essence: ${essence}\n`;
+    }
+  });
+
+  if (userQuestion && userQuestion.trim()) {
+    prompt += `\nQuerent's Specific Focus Question:\n"${userQuestion.trim()}"\n`;
+    prompt += `\nPlease address this question directly by analyzing how the spread's dynamics illuminate their question.`;
+  } else {
+    prompt += `\nPlease weave these cards into an overarching narrative for the querent, highlighting the central lessons, hidden dynamics, and actionable guidance for their path ahead.`;
+  }
+  return prompt;
+}
+
+// Multi-Provider Vanilla Fetch Dispatcher
+async function dispatchAIRequest(provider, model, apiKey, systemPrompt, userPrompt) {
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error(`No API key found for ${AI_PROVIDERS[provider].name}. Please configure your key in Settings.`);
+  }
+
+  // Google Gemini implementation
+  if (provider === "gemini") {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
+    const payload = {
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 3000
+      }
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => null);
+      const msg = errData?.error?.message || `HTTP ${res.status} ${res.statusText}`;
+      throw new Error(`Google Gemini Error: ${msg}`);
+    }
+
+    const data = await res.json();
+    const candidate = data.candidates?.[0];
+    let text = candidate?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error("Google Gemini did not return any textual guidance. Please try again.");
+    }
+    if (candidate?.finishReason === "MAX_TOKENS") {
+      text += "\n\n*(Reading reached token length limit)*";
+    }
+    return text;
+  }
+
+  // OpenAI-compatible endpoints: OpenRouter, Groq, OpenAI
+  let endpoint = "";
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey.trim()}`
+  };
+
+  if (provider === "openrouter") {
+    endpoint = "https://openrouter.ai/api/v1/chat/completions";
+    headers["HTTP-Referer"] = window.location.origin || "https://arcana-tarot.local";
+    headers["X-Title"] = "Tarot App";
+  } else if (provider === "groq") {
+    endpoint = "https://api.groq.com/openai/v1/chat/completions";
+  } else if (provider === "openai") {
+    endpoint = "https://api.openai.com/v1/chat/completions";
+  } else {
+    throw new Error(`Unsupported provider: ${provider}`);
+  }
+
+  const payload = {
+    model: model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ],
+    temperature: 0.7,
+    max_tokens: 3000
+  };
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: headers,
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => null);
+    const msg = errData?.error?.message || errData?.message || `HTTP ${res.status} ${res.statusText}`;
+    throw new Error(`${AI_PROVIDERS[provider].name} Error: ${msg}`);
+  }
+
+  const data = await res.json();
+  const choice = data.choices?.[0];
+  let text = choice?.message?.content;
+  if (!text) {
+    throw new Error(`${AI_PROVIDERS[provider].name} did not return any textual guidance. Please try again.`);
+  }
+  if (choice?.finish_reason === "length") {
+    text += "\n\n*(Reading reached token length limit)*";
+  }
+  return text;
+}
+
+// Drawer UI Controller
+function initArcanaDrawer() {
+  const fab = $("arcanaFab");
+  const backdrop = $("arcanaBackdrop");
+  const drawer = $("arcanaDrawer");
+  const closeBtn = $("drawerCloseBtn");
+  const settingsBtn = $("drawerSettingsBtn");
+  const providerSelect = $("providerSelect");
+  const modelSelect = $("modelSelect");
+  const apiKeyInput = $("apiKeyInput");
+  const toggleKeyBtn = $("toggleKeyVisibilityBtn");
+  const saveKeyBtn = $("saveKeyBtn");
+  const removeKeyBtn = $("removeKeyBtn");
+  const backToConsultBtn = $("backToConsultBtn");
+  const askBtn = $("drawerAskBtn");
+  const questionInput = $("drawerQuestionInput");
+  const questionChips = $("questionChips");
+  const copyBtn = $("copyReadingBtn");
+  const errorFixBtn = $("errorFixBtn");
+
+  if (!fab || !drawer) return;
+
+  // Initialize Provider Dropdown
+  const activeProvider = getActiveProvider();
+  providerSelect.value = activeProvider;
+  updateSettingsForm(activeProvider);
+
+  // FAB Click
+  fab.onclick = () => {
+    const provider = getActiveProvider();
+    const keys = getStoredKeys();
+    if (!keys[provider]) {
+      openArcanaDrawer("settings");
+    } else {
+      openArcanaDrawer("consult");
+    }
+  };
+
+  // Close actions
+  if (closeBtn) closeBtn.onclick = closeArcanaDrawer;
+  if (backdrop) backdrop.onclick = closeArcanaDrawer;
+
+  // Settings toggle
+  if (settingsBtn) {
+    settingsBtn.onclick = () => {
+      const settingsView = $("drawerSettingsView");
+      if (settingsView.style.display === "none") {
+        showDrawerView("settings");
+      } else {
+        showDrawerView("consult");
+      }
+    };
+  }
+
+  // Back from settings
+  if (backToConsultBtn) {
+    backToConsultBtn.onclick = () => showDrawerView("consult");
+  }
+
+  // Error fix shortcut
+  if (errorFixBtn) {
+    errorFixBtn.onclick = () => showDrawerView("settings");
+  }
+
+  // Provider Select Change
+  if (providerSelect) {
+    providerSelect.onchange = () => {
+      const selected = providerSelect.value;
+      setActiveProvider(selected);
+      updateSettingsForm(selected);
+      updateDrawerHeaderBadge(selected);
+    };
+  }
+
+  // Model Select Change
+  if (modelSelect) {
+    modelSelect.onchange = () => {
+      const provider = getActiveProvider();
+      setSelectedModel(provider, modelSelect.value);
+    };
+  }
+
+  // Toggle API Key visibility
+  if (toggleKeyBtn && apiKeyInput) {
+    toggleKeyBtn.onclick = () => {
+      const isPass = apiKeyInput.type === "password";
+      apiKeyInput.type = isPass ? "text" : "password";
+      toggleKeyBtn.textContent = isPass ? "🔒" : "👁";
+    };
+  }
+
+  // Save Key Button
+  if (saveKeyBtn && apiKeyInput) {
+    saveKeyBtn.onclick = () => {
+      const provider = getActiveProvider();
+      const val = apiKeyInput.value.trim();
+      const msgEl = $("settingsMessage");
+      if (!val) {
+        msgEl.textContent = "Please enter an API key to connect.";
+        msgEl.className = "settings-message error";
+        msgEl.style.display = "block";
+        return;
+      }
+      saveStoredKey(provider, val);
+      msgEl.textContent = `✓ Key for ${AI_PROVIDERS[provider].name} saved securely in localStorage.`;
+      msgEl.className = "settings-message success";
+      msgEl.style.display = "block";
+      updateSettingsForm(provider);
+      setTimeout(() => {
+        msgEl.style.display = "none";
+        showDrawerView("consult");
+      }, 1200);
+    };
+  }
+
+  // Remove Key Button
+  if (removeKeyBtn) {
+    removeKeyBtn.onclick = () => {
+      const provider = getActiveProvider();
+      removeStoredKey(provider);
+      const msgEl = $("settingsMessage");
+      msgEl.textContent = `Key for ${AI_PROVIDERS[provider].name} has been removed.`;
+      msgEl.className = "settings-message error";
+      msgEl.style.display = "block";
+      updateSettingsForm(provider);
+      setTimeout(() => { msgEl.style.display = "none"; }, 2500);
+    };
+  }
+
+  // Question Suggestion Chips
+  if (questionChips && questionInput) {
+    questionChips.querySelectorAll(".question-chip").forEach(chip => {
+      chip.onclick = () => {
+        questionInput.value = chip.dataset.q;
+        questionInput.focus();
+      };
+    });
+  }
+
+  // Copy Reading Button
+  if (copyBtn) {
+    copyBtn.onclick = async () => {
+      if (!currentReadingRaw) return;
+      try {
+        await navigator.clipboard.writeText(currentReadingRaw);
+        copyBtn.textContent = "✓ Copied!";
+        setTimeout(() => { copyBtn.textContent = "📋 Copy"; }, 2000);
+      } catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = currentReadingRaw;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        copyBtn.textContent = "✓ Copied!";
+        setTimeout(() => { copyBtn.textContent = "📋 Copy"; }, 2000);
+      }
+    };
+  }
+
+  // Ask Arcana Action Button
+  if (askBtn) {
+    askBtn.onclick = async () => {
+      if (isGeneratingReading) return;
+
+      const provider = getActiveProvider();
+      const keys = getStoredKeys();
+      const apiKey = keys[provider];
+
+      if (!apiKey) {
+        showDrawerView("settings");
+        const msgEl = $("settingsMessage");
+        msgEl.textContent = `Please enter and save your ${AI_PROVIDERS[provider].name} API key first.`;
+        msgEl.className = "settings-message error";
+        msgEl.style.display = "block";
+        apiKeyInput.focus();
+        return;
+      }
+
+      if (!state.key || !state.cards || state.cards.length === 0) {
+        showDrawerError("No spread active. Please pick a spread and draw cards first.");
+        return;
+      }
+
+      const revealedCount = state.cards.filter(c => c.revealed).length;
+      if (revealedCount === 0) {
+        showDrawerError("Please reveal at least one card in your spread before consulting the Arcana.");
+        return;
+      }
+
+      const model = getModelForProvider(provider);
+      const s = spreads[state.key];
+      const cardsWithPos = state.cards.map((c, i) => ({
+        ...c,
+        position: s.positions[i] || `Position ${i + 1}`
+      }));
+      const userQuestion = questionInput ? questionInput.value : "";
+      const userPrompt = buildTarotPrompt(s.title, cardsWithPos, userQuestion);
+
+      // Set loading state
+      isGeneratingReading = true;
+      askBtn.disabled = true;
+      $("drawerLoading").style.display = "flex";
+      $("drawerError").style.display = "none";
+      $("drawerReadingOutput").style.display = "none";
+
+      try {
+        const reading = await dispatchAIRequest(provider, model, apiKey, TAROT_SYSTEM_PROMPT, userPrompt);
+        currentReadingRaw = reading;
+        $("readingContent").innerHTML = renderSafeMarkdown(reading);
+        $("drawerReadingOutput").style.display = "flex";
+      } catch (err) {
+        showDrawerError(err.message || "An unexpected error occurred during consultation.");
+      } finally {
+        isGeneratingReading = false;
+        askBtn.disabled = false;
+        $("drawerLoading").style.display = "none";
+      }
+    };
+  }
+
+  updateArcanaFab();
+}
+
+function showDrawerView(view) {
+  const consultView = $("drawerConsultView");
+  const settingsView = $("drawerSettingsView");
+  const backBtn = $("backToConsultBtn");
+  const keys = getStoredKeys();
+  const provider = getActiveProvider();
+  const hasKey = Boolean(keys[provider]);
+
+  if (view === "settings") {
+    consultView.style.display = "none";
+    settingsView.style.display = "flex";
+    if (backBtn) backBtn.style.display = hasKey ? "inline-block" : "none";
+  } else {
+    settingsView.style.display = "none";
+    consultView.style.display = "flex";
+    updateConsultViewSummary();
+  }
+}
+
+function openArcanaDrawer(preferView) {
+  const drawer = $("arcanaDrawer");
+  const backdrop = $("arcanaBackdrop");
+  const provider = getActiveProvider();
+  const keys = getStoredKeys();
+  const hasKey = Boolean(keys[provider]);
+
+  updateDrawerHeaderBadge(provider);
+
+  if (preferView === "settings" || !hasKey) {
+    showDrawerView("settings");
+  } else {
+    showDrawerView("consult");
+  }
+
+  backdrop.classList.add("active");
+  drawer.classList.add("open");
+}
+
+function closeArcanaDrawer() {
+  const drawer = $("arcanaDrawer");
+  const backdrop = $("arcanaBackdrop");
+  if (drawer) drawer.classList.remove("open");
+  if (backdrop) backdrop.classList.remove("active");
+}
+
+function updateDrawerHeaderBadge(provider) {
+  const badge = $("drawerProviderBadge");
+  if (badge && AI_PROVIDERS[provider]) {
+    badge.textContent = AI_PROVIDERS[provider].badge;
+  }
+}
+
+function updateSettingsForm(provider) {
+  const config = AI_PROVIDERS[provider];
+  if (!config) return;
+
+  const modelSelect = $("modelSelect");
+  const guideBox = $("tutorialGuideBox");
+  const apiKeyInput = $("apiKeyInput");
+  const indicator = $("keyStatusIndicator");
+  const removeKeyBtn = $("removeKeyBtn");
+  const keys = getStoredKeys();
+  const savedKey = keys[provider] || "";
+
+  // 1. Populate Model Select
+  if (modelSelect) {
+    const currentModel = getModelForProvider(provider);
+    modelSelect.innerHTML = config.models.map(m => `
+      <option value="${m.id}" ${m.id === currentModel ? "selected" : ""}>${m.label}</option>
+    `).join("");
+  }
+
+  // 2. Populate Tutorial Box
+  if (guideBox) {
+    guideBox.innerHTML = `
+      <div><strong>🔑 How to get a ${config.name} API Key:</strong></div>
+      <ol class="tutorial-steps">
+        ${config.tutorial.steps.map(step => `<li>${step}</li>`).join("")}
+      </ol>
+      <div style="margin-top:8px;">
+        <a href="${config.tutorial.url}" target="_blank" rel="noopener noreferrer">
+          ✦ Open ${config.tutorial.portalName} ↗
+        </a>
+      </div>
+    `;
+  }
+
+  // 3. Populate Key Input & Status
+  if (apiKeyInput) {
+    apiKeyInput.placeholder = `e.g. ${config.keyPlaceholder}`;
+    apiKeyInput.value = savedKey;
+  }
+
+  if (indicator) {
+    if (savedKey) {
+      indicator.textContent = "Connected ✓";
+      indicator.className = "key-status-indicator configured";
+    } else {
+      indicator.textContent = "Not Configured";
+      indicator.className = "key-status-indicator";
+    }
+  }
+
+  if (removeKeyBtn) {
+    removeKeyBtn.style.display = savedKey ? "inline-block" : "none";
+  }
+}
+
+function updateConsultViewSummary() {
+  const nameEl = $("summarySpreadName");
+  const countEl = $("summaryRevealedCount");
+  const chipsEl = $("summaryCardsList");
+
+  if (!state.key || !state.cards) {
+    if (nameEl) nameEl.textContent = "No Spread Selected";
+    if (countEl) countEl.textContent = "0 Cards";
+    if (chipsEl) chipsEl.innerHTML = `<span style="font-size:11px;color:var(--muted);font-style:italic;">Draw cards from the main screen to begin.</span>`;
+    return;
+  }
+
+  const s = spreads[state.key];
+  const total = state.cards.length;
+  const revealed = state.cards.filter(c => c.revealed).length;
+
+  if (nameEl) nameEl.textContent = s.title;
+  if (countEl) countEl.textContent = `${revealed} of ${total} Revealed`;
+
+  if (chipsEl) {
+    if (revealed === 0) {
+      chipsEl.innerHTML = `<span style="font-size:11.5px;color:var(--muted);font-style:italic;">No cards revealed yet. Flip a card in the reading view to consult the Arcana.</span>`;
+    } else {
+      chipsEl.innerHTML = state.cards.map((c, i) => {
+        if (!c.revealed) return "";
+        const pos = s.positions[i] || `Position ${i + 1}`;
+        const isRev = c.orientation === "Reversed";
+        return `
+          <span class="card-chip ${isRev ? "rev" : ""}" title="${pos}: ${c.name} (${c.orientation})">
+            <strong>${pos}:</strong> ${c.name}
+            <span class="chip-orient">${isRev ? "Rev" : "Up"}</span>
+          </span>
+        `;
+      }).join("");
+    }
+  }
+}
+
+function showDrawerError(msg) {
+  const errorContainer = $("drawerError");
+  const errorMsg = $("drawerErrorMessage");
+  if (errorContainer && errorMsg) {
+    errorMsg.textContent = msg;
+    errorContainer.style.display = "flex";
+  }
+}
+
+function updateArcanaFab() {
+  const fab = $("arcanaFab");
+  if (!fab) return;
+
+  const isReadingActive = $("reading") && $("reading").classList.contains("active");
+  const hasCardsDrawn = Boolean(state && state.cards && state.cards.length > 0);
+  const hasRevealedCards = Boolean(state && state.revealed > 0);
+
+  if (isReadingActive && hasCardsDrawn && hasRevealedCards) {
+    fab.classList.remove("idle");
+    fab.classList.add("ready");
+    fab.title = "Consult the Arcana with your drawn cards";
+  } else {
+    fab.classList.remove("ready");
+    fab.classList.add("idle");
+    fab.title = "Draw your cards first to consult the Arcana";
+  }
+}
+
+// Initialize Arcana Drawer on Page Load
+initArcanaDrawer();
 
